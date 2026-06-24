@@ -1,0 +1,87 @@
+{
+  "name": "assigned",
+  "displayName": "Assigned",
+  "description": "Shows your assigned GitLab MRs and lets you review them in one click with Copilot",
+  "version": "0.1.0",
+  "publisher": "johnny",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "assigned",
+          "title": "Assigned Reviews",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "assigned": [
+        {
+          "id": "assigned.mrList",
+          "name": "Assigned MRs"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "assigned.configure",
+        "title": "Assigned: Configure"
+      },
+      {
+        "command": "assigned.reviewMR",
+        "title": "Review MR",
+        "icon": "$(play)"
+      },
+      {
+        "command": "assigned.refresh",
+        "title": "Assigned: Refresh Now",
+        "icon": "$(refresh)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "assigned.refresh",
+          "when": "view == assigned.mrList",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "assigned.reviewMR",
+          "when": "view == assigned.mrList && viewItem == mr",
+          "group": "inline"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Assigned",
+      "properties": {
+        "assigned.pollIntervalMinutes": {
+          "type": "number",
+          "default": 10,
+          "description": "How often to poll GitLab for assigned MRs (in minutes)"
+        },
+        "assigned.gitlabUrl": {
+          "type": "string",
+          "default": "https://gitlab.com",
+          "description": "Your GitLab instance URL"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  }
+}
