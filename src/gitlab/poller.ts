@@ -5,18 +5,19 @@ import { getConfig } from '../config';
 export class Poller {
   private timer: ReturnType<typeof setInterval> | null = null;
   private readonly _onMRsUpdated = new vscode.EventEmitter<MR[]>();
+  private readonly _onPollError = new vscode.EventEmitter<Error>();
   readonly onMRsUpdated = this._onMRsUpdated.event;
+  readonly onPollError = this._onPollError.event;
 
   constructor(
     private readonly client: GitLabClient,
-    private readonly context: vscode.ExtensionContext
+    private readonly userId?: number
   ) {}
 
   start(): void {
     this.fetch();
     const intervalMs = getConfig().pollIntervalMinutes * 60_000;
     this.timer = setInterval(() => this.fetch(), intervalMs);
-    this.context.subscriptions.push({ dispose: () => this.stop() });
   }
 
   stop(): void {
@@ -28,15 +29,16 @@ export class Poller {
 
   async fetch(): Promise<void> {
     try {
-      const mrs = await this.client.getAssignedMRs();
+      const mrs = await this.client.getAssignedMRs(this.userId);
       this._onMRsUpdated.fire(mrs);
-    } catch {
-      // silently swallow poll errors (network blips, token expiry handled via UI)
+    } catch (err) {
+      this._onPollError.fire(err instanceof Error ? err : new Error(String(err)));
     }
   }
 
   dispose(): void {
     this.stop();
     this._onMRsUpdated.dispose();
+    this._onPollError.dispose();
   }
 }

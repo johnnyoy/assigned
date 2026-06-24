@@ -2,8 +2,6 @@ import * as vscode from 'vscode';
 import { GitLabClient } from '../gitlab/client';
 import { MRItem } from '../ui/mrTreeProvider';
 
-const MAX_DIFF_FILES = 20;
-
 interface GitRemote {
   fetchUrl?: string;
   pushUrl?: string;
@@ -68,10 +66,11 @@ export async function reviewMR(item: MRItem, client: GitLabClient): Promise<void
       await repo.checkout(item.mr.source_branch);
 
       progress.report({ message: 'Opening diffs…' });
-      const changes = detail.changes.filter(c => !c.deleted_file).slice(0, MAX_DIFF_FILES);
-      if (detail.changes.length > MAX_DIFF_FILES) {
+      const maxFiles = vscode.workspace.getConfiguration('assigned').get<number>('maxDiffFiles', 20);
+      const changes = detail.changes.filter(c => !c.deleted_file).slice(0, maxFiles);
+      if (detail.changes.length > maxFiles) {
         vscode.window.showWarningMessage(
-          `MR has ${detail.changes.length} changed files — showing first ${MAX_DIFF_FILES}.`
+          `MR has ${detail.changes.length} changed files — showing first ${maxFiles}.`
         );
       }
 

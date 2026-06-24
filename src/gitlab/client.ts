@@ -37,11 +37,10 @@ interface ETagEntry {
   data: MR[];
 }
 
-const etagCache = new Map<string, ETagEntry>();
-
 export class GitLabClient {
   private baseUrl: string;
   private token: string;
+  private etagCache = new Map<string, ETagEntry>();
 
   constructor(baseUrl: string, token: string) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
@@ -56,7 +55,7 @@ export class GitLabClient {
     };
 
     if (useEtag) {
-      const cached = etagCache.get(url);
+      const cached = this.etagCache.get(url);
       if (cached) {
         headers['If-None-Match'] = cached.etag;
       }
@@ -65,7 +64,7 @@ export class GitLabClient {
     const response = await fetch(url, { headers });
 
     if (response.status === 304 && useEtag) {
-      const cached = etagCache.get(url);
+      const cached = this.etagCache.get(url);
       return cached ? (cached.data as unknown as T) : null;
     }
 
@@ -77,7 +76,7 @@ export class GitLabClient {
     const etag = response.headers.get('etag');
 
     if (useEtag && etag && Array.isArray(data)) {
-      etagCache.set(url, { etag, data: data as unknown as MR[] });
+      this.etagCache.set(url, { etag, data: data as unknown as MR[] });
     }
 
     return data;
@@ -89,9 +88,10 @@ export class GitLabClient {
     return data;
   }
 
-  async getAssignedMRs(): Promise<MR[]> {
+  async getAssignedMRs(userId?: number): Promise<MR[]> {
+    const assigneeParam = userId ? `assignee_id=${userId}` : 'assignee_id=me';
     const data = await this.get<MR[]>(
-      '/merge_requests?assignee_id=me&state=opened&scope=assigned_to_me&per_page=50',
+      `/merge_requests?${assigneeParam}&state=opened&scope=assigned_to_me&per_page=50`,
       true
     );
     return data ?? [];
