@@ -53,9 +53,7 @@ export async function reviewMR(item: MRItem, client: GitLabClient): Promise<void
           'Cancel'
         );
         if (choice === 'Clone It') {
-          const terminal = vscode.window.createTerminal('Assigned: Clone');
-          terminal.show();
-          terminal.sendText(`git clone ${project.http_url_to_repo}`);
+          await vscode.commands.executeCommand('git.clone', project.http_url_to_repo);
         }
         return;
       }

@@ -9,8 +9,10 @@ export interface Config {
 
 export function getConfig(): Config {
   const cfg = vscode.workspace.getConfiguration('assigned');
+  const raw = (cfg.get<string>('gitlabUrl') || 'https://gitlab.com').replace(/\/$/, '');
+  const gitlabUrl = raw.startsWith('https://') ? raw : 'https://gitlab.com';
   return {
-    gitlabUrl: (cfg.get<string>('gitlabUrl') || 'https://gitlab.com').replace(/\/$/, ''),
+    gitlabUrl,
     pollIntervalMinutes: cfg.get<number>('pollIntervalMinutes') || 10,
   };
 }
