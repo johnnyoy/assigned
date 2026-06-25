@@ -80,7 +80,9 @@
         "assigned.gitlabUrl": {
           "type": "string",
           "default": "https://gitlab.com",
-          "description": "Your GitLab instance URL"
+          "pattern": "^https://",
+          "patternErrorMessage": "GitLab URL must start with https://",
+          "description": "Your GitLab instance URL (must be HTTPS)"
         },
         "assigned.maxDiffFiles": {
           "type": "number",
