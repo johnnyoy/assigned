@@ -17,16 +17,14 @@ A VS Code extension that watches GitLab for merge requests assigned to you and l
 git clone https://github.com/johnnyoy/assigned
 cd assigned
 npm install
-npm run compile
 ```
 
-Then press **F5** in VS Code to open an Extension Development Host with the extension loaded.
+Then press **F5** in VS Code — the extension builds and opens in an Extension Development Host automatically.
 
 ### Package as .vsix
 
 ```bash
-npm install -g @vscode/vsce
-vsce package
+npm run package
 ```
 
 This produces `assigned-0.1.0.vsix`. Install it via **Extensions → … → Install from VSIX**.
@@ -38,28 +36,29 @@ This produces `assigned-0.1.0.vsix`. Install it via **Extensions → … → Ins
 3. Enter your GitLab instance URL (e.g. `https://gitlab.com` or `https://gitlab.mycompany.com`)
 4. Paste your Personal Access Token
 
-Your token is stored in VS Code's encrypted secret storage and never written to disk or settings files.
+The token is validated immediately against `GET /api/v4/user`. If it's invalid or missing `read_api` scope, you'll be told right away. The token is stored in VS Code's encrypted secret storage and never written to disk or settings files.
 
 **Creating a GitLab PAT:**
 GitLab → User Settings → Access Tokens → New token → scope: `read_api`
 
 ## Usage
 
-After setup, the **Assigned Reviews** panel appears in the activity bar (look for the review icon).
+After setup, the **Assigned Reviews** panel appears in the activity bar. A badge shows the count of open assignments, and the status bar shows when the list was last synced.
 
 | Action | How |
 |--------|-----|
-| See assigned MRs | Open the Assigned panel — it refreshes automatically every 10 minutes |
+| See assigned MRs | Open the Assigned panel — refreshes automatically every 10 minutes |
 | Force refresh | Click the ↺ button in the panel title bar, or run **Assigned: Refresh Now** |
-| Review an MR | Click the ▷ button next to any MR in the list |
+| Open MR in browser | Click the ↗ button next to any MR |
+| Review an MR | Click the ▷ button next to any MR |
 | Reconfigure token or URL | Run **Assigned: Configure** again |
 
 ### What "Review" does
 
 1. Fetches the MR's changed files from GitLab
-2. Finds the repository in your currently open VS Code workspace
+2. Finds the repository in your currently open VS Code workspace (matched by remote URL)
 3. Fetches and checks out the MR's source branch
-4. Opens diffs for up to 20 changed files
+4. Opens diffs for up to `assigned.maxDiffFiles` changed files (default: 20)
 5. Triggers **GitHub Copilot's** `reviewChanges` command (falls back to opening Copilot Chat with `/review`)
 
 If the repository isn't open in VS Code yet, the extension offers to clone it for you.
@@ -71,16 +70,19 @@ Set these in VS Code settings (`Ctrl+,`):
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `assigned.gitlabUrl` | `https://gitlab.com` | Your GitLab instance URL |
-| `assigned.pollIntervalMinutes` | `10` | How often to check for new MRs (minutes) |
+| `assigned.pollIntervalMinutes` | `10` | How often to check for new MRs (minutes). Changes take effect immediately. |
+| `assigned.maxDiffFiles` | `20` | Maximum number of changed files to open as diffs during a review (max 100) |
 
 ## Development
 
 ```bash
 npm run compile   # build once
 npm run watch     # rebuild on save
+npm test          # run unit tests (Vitest, no VS Code needed)
+npm run package   # produce assigned-x.x.x.vsix
 ```
 
-Press **F5** to launch the Extension Development Host. Changes to source files require a recompile (`npm run compile`) and an **Extension Host restart** (`Ctrl+Shift+P → Developer: Restart Extension Host`).
+Press **F5** to launch the Extension Development Host (`.vscode/launch.json` is pre-configured). After editing source, recompile and run `Developer: Restart Extension Host` from the Command Palette.
 
 **Project structure:**
 
@@ -90,7 +92,9 @@ src/
 ├── config.ts             # token + settings read/write
 ├── gitlab/
 │   ├── client.ts         # GitLab API v4 (fetch + ETag caching)
-│   └── poller.ts         # setInterval-based polling
+│   ├── client.test.ts    # unit tests: URL construction, error handling, ETag
+│   ├── poller.ts         # setInterval-based polling, onMRsUpdated / onPollError events
+│   └── poller.test.ts    # unit tests: event firing on success and failure
 ├── ui/
 │   └── mrTreeProvider.ts # sidebar TreeView
 └── review/
@@ -101,7 +105,7 @@ src/
 
 - GitLab only (GitHub support planned)
 - The repository must be cloned locally and open in VS Code for the one-click review to work
-- Up to 50 MRs shown; up to 20 diffs opened per review
+- Up to 50 MRs shown per poll
 - Polling only — no webhooks, so new assignments appear within one poll interval
 
 ## Roadmap
@@ -110,4 +114,3 @@ src/
 - GitHub support
 - Multiple GitLab instances
 - Configurable review prompt / custom AI instructions
-- Status bar indicator showing last poll time
