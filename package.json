@@ -46,13 +46,30 @@
         "command": "assigned.openMR",
         "title": "Open on GitLab",
         "icon": "$(link-external)"
+      },
+      {
+        "command": "assigned.signOut",
+        "title": "Assigned: Sign Out",
+        "icon": "$(sign-out)"
+      }
+    ],
+    "viewsWelcome": [
+      {
+        "view": "assigned.mrList",
+        "contents": "No GitLab token configured.\n[Configure](command:assigned.configure)",
+        "when": "!assigned.configured"
       }
     ],
     "menus": {
       "view/title": [
         {
           "command": "assigned.refresh",
-          "when": "view == assigned.mrList",
+          "when": "view == assigned.mrList && assigned.configured",
+          "group": "navigation"
+        },
+        {
+          "command": "assigned.signOut",
+          "when": "view == assigned.mrList && assigned.configured",
           "group": "navigation"
         }
       ],

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GitLabClient } from './client';
+import { GitLabClient, GitLabError } from './client';
 
 vi.mock('vscode', () => ({}));
 vi.mock('../config', () => ({
@@ -46,12 +46,30 @@ describe('GitLabClient.getAssignedMRs', () => {
   });
 });
 
+describe('GitLabClient.getReviewRequestedMRs', () => {
+  it('URL contains scope=all and reviewer_id', async () => {
+    const mockFetch = makeFetch(200, []);
+    vi.stubGlobal('fetch', mockFetch);
+
+    const client = new GitLabClient('https://gitlab.com', 'token');
+    await client.getReviewRequestedMRs(42);
+
+    const calledUrl = mockFetch.mock.calls[0][0] as string;
+    expect(calledUrl).toContain('reviewer_id=42');
+    expect(calledUrl).toContain('scope=all');
+  });
+});
+
 describe('GitLabClient error handling', () => {
-  it('throws with status code in message on non-2xx response', async () => {
+  it('throws GitLabError with status on non-2xx response', async () => {
     vi.stubGlobal('fetch', makeFetch(401, 'Unauthorized'));
 
     const client = new GitLabClient('https://gitlab.com', 'bad-token');
-    await expect(client.getCurrentUser()).rejects.toThrow('GitLab API 401');
+    const err = await client.getCurrentUser().catch(e => e);
+
+    expect(err).toBeInstanceOf(GitLabError);
+    expect(err.message).toContain('GitLab API 401');
+    expect(err.status).toBe(401);
   });
 });
 
@@ -78,5 +96,43 @@ describe('GitLabClient ETag caching', () => {
     const second = await client.getAssignedMRs();
     expect(second).toEqual([]); // cached value returned
     expect(secondFetch.mock.calls[0][1].headers['If-None-Match']).toBe('"etag-abc"');
+  });
+});
+
+describe('GitLabClient.getMRDiffs', () => {
+  it('calls the /diffs endpoint', async () => {
+    const mockFetch = makeFetch(200, [{ old_path: 'a.ts', new_path: 'a.ts', new_file: false, deleted_file: false }]);
+    vi.stubGlobal('fetch', mockFetch);
+
+    const client = new GitLabClient('https://gitlab.com', 'token');
+    const diffs = await client.getMRDiffs(10, 1);
+
+    expect(mockFetch.mock.calls[0][0] as string).toContain('/diffs');
+    expect(diffs).toHaveLength(1);
+  });
+
+  it('falls back to /changes on 404', async () => {
+    const changeEntry = { old_path: 'b.ts', new_path: 'b.ts', new_file: false, deleted_file: false };
+    let callCount = 0;
+    vi.stubGlobal('fetch', vi.fn(() => {
+      callCount++;
+      if (callCount === 1) {
+        return Promise.resolve({
+          ok: false, status: 404,
+          headers: { get: () => null },
+          text: async () => 'Not Found',
+        });
+      }
+      return Promise.resolve({
+        ok: true, status: 200,
+        headers: { get: () => null },
+        json: async () => ({ changes: [changeEntry] }),
+      });
+    }));
+
+    const client = new GitLabClient('https://gitlab.com', 'token');
+    const diffs = await client.getMRDiffs(10, 1);
+
+    expect(diffs).toEqual([changeEntry]);
   });
 });
