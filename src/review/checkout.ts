@@ -34,6 +34,9 @@ export async function reviewMR(item: MRItem, client: GitLabClient): Promise<void
         vscode.window.showErrorMessage('Git extension not found. Please enable the built-in Git extension.');
         return;
       }
+      if (!gitExt.isActive) {
+        await gitExt.activate();
+      }
 
       const git = gitExt.exports.getAPI(1);
       const repo: GitRepository | undefined = git.repositories.find((r: GitRepository) =>

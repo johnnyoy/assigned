@@ -7,6 +7,7 @@ import { reviewMR } from './review/checkout';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const treeProvider = new MRTreeProvider();
+  context.subscriptions.push(treeProvider);
   const treeView = vscode.window.createTreeView('assigned.mrList', {
     treeDataProvider: treeProvider,
     showCollapseAll: false,

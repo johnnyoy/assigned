@@ -15,7 +15,7 @@ export class MRItem extends vscode.TreeItem {
   }
 }
 
-export class MRTreeProvider implements vscode.TreeDataProvider<MRItem> {
+export class MRTreeProvider implements vscode.TreeDataProvider<MRItem>, vscode.Disposable {
   private mrs: MR[] = [];
 
   private readonly _onDidChangeTreeData = new vscode.EventEmitter<void>();
@@ -36,5 +36,9 @@ export class MRTreeProvider implements vscode.TreeDataProvider<MRItem> {
 
   getChildren(): MRItem[] {
     return this.mrs.map(mr => new MRItem(mr));
+  }
+
+  dispose(): void {
+    this._onDidChangeTreeData.dispose();
   }
 }

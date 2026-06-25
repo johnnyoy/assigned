@@ -18,9 +18,9 @@ This is a VS Code extension (TypeScript, CommonJS output to `out/`) with no back
 **Data flow:**
 1. `extension.ts` — `activate()` wires everything together and is the only place commands are registered. On startup it checks SecretStorage for a token; if found it starts the poller automatically.
 2. `gitlab/client.ts` — thin `fetch` wrapper around GitLab API v4. All requests use `Bearer` token auth. The list-MRs call uses ETags to avoid redundant processing on unchanged data.
-3. `gitlab/poller.ts` — fires `onMRsUpdated` event on a `setInterval`. The interval is cleared by pushing a disposable onto `context.subscriptions`, so no explicit cleanup is needed in `deactivate()`.
+3. `gitlab/poller.ts` — fires `onMRsUpdated` and `onPollError` events on a `setInterval`. Poller lifetime is managed by a single disposable pushed onto `context.subscriptions` in `extension.ts`; `Poller` itself has no reference to `context`.
 4. `ui/mrTreeProvider.ts` — `MRTreeProvider` is a standard `TreeDataProvider`. `MRItem` extends `TreeItem` and carries the raw `MR` object so command handlers can access it.
-5. `review/checkout.ts` — the one-click review flow: fetches MR changes + project via `GitLabClient`, locates the matching local repo via `vscode.git` extension API (matched by `path_with_namespace` in remote URLs), checks out the source branch, opens up to 20 diffs with `git.openChange`, then tries `github.copilot.reviewChanges` → `workbench.action.chat.open` → marketplace prompt in order of preference.
+5. `review/checkout.ts` — the one-click review flow: fetches MR changes + project via `GitLabClient`, locates the matching local repo via `vscode.git` extension API (matched by `path_with_namespace` in remote URLs), checks out the source branch, opens diffs (count capped by `assigned.maxDiffFiles` setting, default 20) with `git.openChange`, then tries `github.copilot.reviewChanges` → `workbench.action.chat.open` → marketplace prompt in order of preference.
 
 **Secrets:** GitLab PAT is stored exclusively in `vscode.SecretStorage` (key `assigned.gitlabToken`). The GitLab URL is a regular VS Code setting (`assigned.gitlabUrl`). Never write the token to settings.json or log it.
 
