@@ -1,0 +1,42 @@
+name: Publish to VS Code Marketplace
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # needed to create a GitHub Release
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Type-check
+        run: npm run compile
+
+      - name: Test
+        run: npm test
+
+      - name: Package
+        run: npm run package
+
+      - name: Publish to Marketplace
+        run: npx vsce publish -p "$VSCE_PAT"
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "*.vsix"
+          generate_release_notes: true
