@@ -13,6 +13,9 @@ export interface MR {
   references: { full: string };
 }
 
+export type MRRole = 'assigned' | 'reviewer';
+export interface TaggedMR extends MR { role: MRRole; }
+
 export interface MRChange {
   old_path: string;
   new_path: string;
@@ -20,9 +23,8 @@ export interface MRChange {
   deleted_file: boolean;
 }
 
-export interface MRDetail extends MR {
+interface MRDetail extends MR {
   changes: MRChange[];
-  overflow: boolean;
 }
 
 export interface Project {
@@ -35,6 +37,13 @@ export interface Project {
 interface ETagEntry {
   etag: string;
   data: MR[];
+}
+
+export class GitLabError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = 'GitLabError';
+  }
 }
 
 export class GitLabClient {
@@ -69,7 +78,7 @@ export class GitLabClient {
     }
 
     if (!response.ok) {
-      throw new Error(`GitLab API ${response.status} for ${path}`);
+      throw new GitLabError(`GitLab API ${response.status} for ${path}`, response.status);
     }
 
     const data = await response.json() as T;
@@ -91,18 +100,37 @@ export class GitLabClient {
   async getAssignedMRs(userId?: number): Promise<MR[]> {
     const assigneeParam = userId ? `assignee_id=${userId}` : 'assignee_id=me';
     const data = await this.get<MR[]>(
-      `/merge_requests?${assigneeParam}&state=opened&scope=assigned_to_me&per_page=50`,
+      `/merge_requests?${assigneeParam}&state=opened&scope=all&per_page=50`,
       true
     );
     return data ?? [];
   }
 
-  async getMRChanges(projectId: number, mrIid: number): Promise<MRDetail> {
-    const data = await this.get<MRDetail>(
-      `/projects/${projectId}/merge_requests/${mrIid}/changes`
+  async getReviewRequestedMRs(userId?: number): Promise<MR[]> {
+    const param = userId ? `reviewer_id=${userId}` : 'reviewer_id=me';
+    const data = await this.get<MR[]>(
+      `/merge_requests?${param}&state=opened&scope=all&per_page=50`,
+      true
     );
-    if (!data) throw new Error('Failed to fetch MR changes');
-    return data;
+    return data ?? [];
+  }
+
+  async getMRDiffs(projectId: number, mrIid: number): Promise<MRChange[]> {
+    try {
+      const data = await this.get<MRChange[]>(
+        `/projects/${projectId}/merge_requests/${mrIid}/diffs?per_page=100`
+      );
+      return data ?? [];
+    } catch (err) {
+      // Fall back to deprecated /changes endpoint for GitLab < 15.7
+      if (err instanceof GitLabError && err.status === 404) {
+        const detail = await this.get<MRDetail>(
+          `/projects/${projectId}/merge_requests/${mrIid}/changes`
+        );
+        return detail?.changes ?? [];
+      }
+      throw err;
+    }
   }
 
   async getProject(projectId: number): Promise<Project> {

@@ -1,6 +1,6 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
-import { GitLabClient } from '../gitlab/client';
-import { MRItem } from '../ui/mrTreeProvider';
+import { GitLabClient, MR } from '../gitlab/client';
 
 interface GitRemote {
   fetchUrl?: string;
@@ -9,23 +9,27 @@ interface GitRemote {
 
 interface GitRepository {
   rootUri: vscode.Uri;
-  state: { remotes: GitRemote[] };
+  state: {
+    remotes: GitRemote[];
+    workingTreeChanges: unknown[];
+    indexChanges: unknown[];
+  };
   fetch(remote?: string, branch?: string): Promise<void>;
   checkout(branch: string): Promise<void>;
 }
 
-export async function reviewMR(item: MRItem, client: GitLabClient): Promise<void> {
+export async function reviewMR(mr: MR, client: GitLabClient): Promise<void> {
   await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
-      title: `Assigned: Reviewing "${item.mr.title}"`,
+      title: `Assigned: Reviewing "${mr.title}"`,
       cancellable: false,
     },
     async (progress) => {
       progress.report({ message: 'Fetching MR details…' });
-      const [detail, project] = await Promise.all([
-        client.getMRChanges(item.mr.project_id, item.mr.iid),
-        client.getProject(item.mr.project_id),
+      const [diffs, project] = await Promise.all([
+        client.getMRDiffs(mr.project_id, mr.iid),
+        client.getProject(mr.project_id),
       ]);
 
       progress.report({ message: 'Looking for local repository…' });
@@ -58,25 +62,40 @@ export async function reviewMR(item: MRItem, client: GitLabClient): Promise<void
         return;
       }
 
-      progress.report({ message: `Checking out ${item.mr.source_branch}…` });
+      // Dirty-tree check before checkout
+      const isDirty = repo.state.workingTreeChanges.length > 0 || repo.state.indexChanges.length > 0;
+      if (isDirty) {
+        vscode.window.showErrorMessage(
+          'Commit or stash your changes before reviewing this MR.'
+        );
+        return;
+      }
+
+      progress.report({ message: `Checking out ${mr.source_branch}…` });
       try {
-        await repo.fetch('origin', item.mr.source_branch);
+        await repo.fetch('origin', mr.source_branch);
       } catch {
         // fetch may fail if branch already exists locally — continue
       }
-      await repo.checkout(item.mr.source_branch);
+      await repo.checkout(mr.source_branch);
 
       progress.report({ message: 'Opening diffs…' });
       const maxFiles = vscode.workspace.getConfiguration('assigned').get<number>('maxDiffFiles', 20);
-      const changes = detail.changes.filter(c => !c.deleted_file).slice(0, maxFiles);
-      if (detail.changes.length > maxFiles) {
+      const nonDeleted = diffs.filter(c => !c.deleted_file);
+      if (nonDeleted.length > maxFiles) {
         vscode.window.showWarningMessage(
-          `MR has ${detail.changes.length} changed files — showing first ${maxFiles}.`
+          `MR has ${nonDeleted.length} changed files — showing first ${maxFiles}.`
         );
       }
+      const toOpen = nonDeleted.slice(0, maxFiles);
+      const repoFsPath = repo.rootUri.fsPath;
 
-      for (const change of changes) {
+      for (const change of toOpen) {
         const fileUri = vscode.Uri.joinPath(repo.rootUri, change.new_path);
+        // Path traversal guard
+        if (!fileUri.fsPath.startsWith(repoFsPath + path.sep) && fileUri.fsPath !== repoFsPath) {
+          continue;
+        }
         try {
           await vscode.commands.executeCommand('git.openChange', fileUri);
         } catch {
@@ -85,7 +104,7 @@ export async function reviewMR(item: MRItem, client: GitLabClient): Promise<void
       }
 
       progress.report({ message: 'Launching Copilot review…' });
-      await triggerCopilotReview(item.mr.title);
+      await triggerCopilotReview(mr.title);
     }
   );
 }
@@ -121,5 +140,5 @@ async function triggerCopilotReview(mrTitle: string): Promise<void> {
 }
 
 function sanitize(input: string): string {
-  return input.replace(/<\//g, '').replace(/`/g, "'").slice(0, 200);
+  return input.replace(/\s+/g, ' ').replace(/<\//g, '').replace(/`/g, "'").slice(0, 200);
 }
