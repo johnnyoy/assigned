@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { Poller } from './poller';
-import type { GitLabClient, MR } from './client';
+import type { GitLabClient, MR, TaggedMR } from './client';
 
 vi.mock('vscode', () => ({
   EventEmitter: class {
@@ -34,18 +34,19 @@ describe('Poller', () => {
       getAssignedMRs: vi.fn()
         .mockResolvedValueOnce([fakeMR])
         .mockRejectedValueOnce(new Error('network error')),
+      getReviewRequestedMRs: vi.fn().mockResolvedValue([]),
     } as unknown as GitLabClient;
 
     const poller = new Poller(mockClient, 42);
 
-    // First fetch: success
-    const updatedMRs = await new Promise<MR[]>(resolve => {
-      poller.onMRsUpdated(mrs => resolve(mrs as MR[]));
+    // First fetch: success — fakeMR is an assignee MR, so it gets role: 'assigned'
+    const updatedMRs = await new Promise<TaggedMR[]>(resolve => {
+      poller.onMRsUpdated(mrs => resolve(mrs as TaggedMR[]));
       poller.fetch();
     });
-    expect(updatedMRs).toEqual([fakeMR]);
+    expect(updatedMRs).toEqual([{ ...fakeMR, role: 'assigned' }]);
 
-    // Second fetch: failure
+    // Second fetch: failure (getAssignedMRs rejects)
     const pollError = await new Promise<Error>(resolve => {
       poller.onPollError(err => resolve(err as Error));
       poller.fetch();

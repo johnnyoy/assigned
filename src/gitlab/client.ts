@@ -13,6 +13,9 @@ export interface MR {
   references: { full: string };
 }
 
+export type MRRole = 'assigned' | 'reviewer';
+export interface TaggedMR extends MR { role: MRRole; }
+
 export interface MRChange {
   old_path: string;
   new_path: string;
@@ -94,6 +97,12 @@ export class GitLabClient {
       `/merge_requests?${assigneeParam}&state=opened&scope=assigned_to_me&per_page=50`,
       true
     );
+    return data ?? [];
+  }
+
+  async getReviewRequestedMRs(userId?: number): Promise<MR[]> {
+    const param = userId ? `reviewer_id=${userId}` : 'reviewer_id=me';
+    const data = await this.get<MR[]>(`/merge_requests?${param}&state=opened&per_page=50`, true);
     return data ?? [];
   }
 

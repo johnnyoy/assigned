@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
-import { GitLabClient, MR } from './client';
+import { GitLabClient, TaggedMR } from './client';
 import { getConfig } from '../config';
 
 export class Poller {
   private timer: ReturnType<typeof setInterval> | null = null;
-  private readonly _onMRsUpdated = new vscode.EventEmitter<MR[]>();
+  private readonly _onMRsUpdated = new vscode.EventEmitter<TaggedMR[]>();
   private readonly _onPollError = new vscode.EventEmitter<Error>();
   readonly onMRsUpdated = this._onMRsUpdated.event;
   readonly onPollError = this._onPollError.event;
@@ -29,8 +29,15 @@ export class Poller {
 
   async fetch(): Promise<void> {
     try {
-      const mrs = await this.client.getAssignedMRs(this.userId);
-      this._onMRsUpdated.fire(mrs);
+      const [assigned, reviewing] = await Promise.all([
+        this.client.getAssignedMRs(this.userId),
+        this.client.getReviewRequestedMRs(this.userId),
+      ]);
+      const seen = new Set<number>();
+      const all: TaggedMR[] = [];
+      for (const mr of assigned) { seen.add(mr.id); all.push({ ...mr, role: 'assigned' }); }
+      for (const mr of reviewing) { if (!seen.has(mr.id)) all.push({ ...mr, role: 'reviewer' }); }
+      this._onMRsUpdated.fire(all);
     } catch (err) {
       this._onPollError.fire(err instanceof Error ? err : new Error(String(err)));
     }

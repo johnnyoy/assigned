@@ -1,27 +1,29 @@
 import * as vscode from 'vscode';
-import { MR } from '../gitlab/client';
+import { TaggedMR } from '../gitlab/client';
 
 export class MRItem extends vscode.TreeItem {
-  constructor(public readonly mr: MR) {
+  constructor(public readonly mr: TaggedMR) {
     super(mr.title, vscode.TreeItemCollapsibleState.None);
-    this.description = `${mr.references.full} · ${mr.author.name}`;
+    const roleSuffix = mr.role === 'reviewer' ? ' · reviewer' : '';
+    this.description = `${mr.references.full} · ${mr.author.name}${roleSuffix}`;
     this.tooltip = new vscode.MarkdownString(
       `**${mr.title}**\n\n` +
+      `Role: ${mr.role === 'reviewer' ? 'Reviewer' : 'Assignee'}\n\n` +
       `Branch: \`${mr.source_branch}\` → \`${mr.target_branch}\`\n\n` +
       `[Open on GitLab](${mr.web_url})`
     );
     this.contextValue = 'mr';
-    this.iconPath = new vscode.ThemeIcon('git-pull-request');
+    this.iconPath = new vscode.ThemeIcon(mr.role === 'reviewer' ? 'eye' : 'git-pull-request');
   }
 }
 
 export class MRTreeProvider implements vscode.TreeDataProvider<MRItem>, vscode.Disposable {
-  private mrs: MR[] = [];
+  private mrs: TaggedMR[] = [];
 
   private readonly _onDidChangeTreeData = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-  update(mrs: MR[]): void {
+  update(mrs: TaggedMR[]): void {
     this.mrs = mrs;
     this._onDidChangeTreeData.fire();
   }

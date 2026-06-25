@@ -10,7 +10,13 @@ export interface Config {
 export function getConfig(): Config {
   const cfg = vscode.workspace.getConfiguration('assigned');
   const raw = (cfg.get<string>('gitlabUrl') || 'https://gitlab.com').replace(/\/$/, '');
-  const gitlabUrl = raw.startsWith('https://') ? raw : 'https://gitlab.com';
+  let gitlabUrl = raw;
+  if (!raw.startsWith('https://')) {
+    void vscode.window.showErrorMessage(
+      `Assigned: GitLab URL "${raw}" must start with https://. Check Settings → assigned.gitlabUrl.`
+    );
+    gitlabUrl = 'https://gitlab.com';
+  }
   return {
     gitlabUrl,
     pollIntervalMinutes: cfg.get<number>('pollIntervalMinutes') || 10,
