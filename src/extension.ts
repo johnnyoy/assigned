@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { configure, getToken, clearToken } from './config';
-import { createClient } from './gitlab/client';
+import { createClient, GitLabError } from './gitlab/client';
 import { Poller } from './gitlab/poller';
 import { MRTreeProvider, MRItem } from './ui/mrTreeProvider';
 import { reviewMR } from './review/checkout';
@@ -52,6 +52,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     poller?.dispose();
     poller = new Poller(client, userId);
 
+    let previousMRIds: Set<number> | null = null;
+
     poller.onMRsUpdated(mrs => {
       treeProvider.update(mrs);
       treeView.badge = mrs.length > 0
@@ -61,6 +63,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       statusBar.text = `$(check) Assigned ${now}`;
       statusBar.tooltip = `${mrs.length} MR(s) · synced ${now} · Click to refresh`;
       statusBar.show();
+
+      if (previousMRIds !== null) {
+        const newMRs = mrs.filter(mr => !previousMRIds!.has(mr.id));
+        for (const mr of newMRs) {
+          const roleLabel = mr.role === 'reviewer' ? 'reviewer for' : 'assigned to';
+          const item = new MRItem(mr);
+          void vscode.window.showInformationMessage(
+            `Assigned: New MR — you are ${roleLabel} "${mr.title}"`,
+            'Review', 'Open on GitLab'
+          ).then(choice => {
+            if (choice === 'Review') {
+              void vscode.commands.executeCommand('assigned.reviewMR', item);
+            } else if (choice === 'Open on GitLab') {
+              void vscode.commands.executeCommand('assigned.openMR', item);
+            }
+          });
+        }
+      }
+      previousMRIds = new Set(mrs.map(mr => mr.id));
     });
 
     poller.onPollError(() => {
@@ -135,6 +156,70 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await reviewMR(item.mr, client);
       } catch (err) {
         vscode.window.showErrorMessage(`Review failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('assigned.approveMR', async (item: MRItem) => {
+      const confirmed = await vscode.window.showWarningMessage(
+        `Approve "${item.mr.title}" (${item.mr.references.full})?`,
+        { modal: true },
+        'Approve'
+      );
+      if (confirmed !== 'Approve') return;
+      const client = await createClient(context.secrets);
+      if (!client) {
+        vscode.window.showErrorMessage('Assigned is not configured. Run "Assigned: Configure" first.');
+        return;
+      }
+      try {
+        await client.approveMR(item.mr.project_id, item.mr.iid);
+        vscode.window.showInformationMessage(`Approved ${item.mr.references.full}.`);
+      } catch (err) {
+        if (err instanceof GitLabError && err.status === 401) {
+          void handleAuthError();
+        } else if (err instanceof GitLabError && err.status === 403) {
+          vscode.window.showErrorMessage(
+            'Assigned: approve requires "api" scope. Reconfigure your token with full API access.'
+          );
+        } else {
+          vscode.window.showErrorMessage(
+            `Approve failed: ${err instanceof Error ? err.message : String(err)}`
+          );
+        }
+      }
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('assigned.requestChanges', async (item: MRItem) => {
+      const note = await vscode.window.showInputBox({
+        prompt: `Request changes on "${item.mr.title}" — enter your comment`,
+        placeHolder: 'Please address the following before merging…',
+        ignoreFocusOut: true,
+      });
+      if (!note?.trim()) return;
+      const client = await createClient(context.secrets);
+      if (!client) {
+        vscode.window.showErrorMessage('Assigned is not configured. Run "Assigned: Configure" first.');
+        return;
+      }
+      try {
+        await client.postMRNote(item.mr.project_id, item.mr.iid, note.trim());
+        vscode.window.showInformationMessage(`Comment posted on ${item.mr.references.full}.`);
+      } catch (err) {
+        if (err instanceof GitLabError && err.status === 401) {
+          void handleAuthError();
+        } else if (err instanceof GitLabError && err.status === 403) {
+          vscode.window.showErrorMessage(
+            'Assigned: posting notes requires "api" scope. Reconfigure your token with full API access.'
+          );
+        } else {
+          vscode.window.showErrorMessage(
+            `Failed to post comment: ${err instanceof Error ? err.message : String(err)}`
+          );
+        }
       }
     })
   );

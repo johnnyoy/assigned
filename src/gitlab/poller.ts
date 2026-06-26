@@ -6,6 +6,7 @@ export class Poller {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private inFlight = false;
   private consecutiveFailures = 0;
+  private disposed = false;
 
   private readonly _onMRsUpdated = new vscode.EventEmitter<TaggedMR[]>();
   private readonly _onPollError = new vscode.EventEmitter<Error>();
@@ -77,6 +78,19 @@ export class Poller {
         const all: TaggedMR[] = [];
         for (const mr of assigned) { seen.add(mr.id); all.push({ ...mr, role: 'assigned' }); }
         for (const mr of reviewing) { if (!seen.has(mr.id)) all.push({ ...mr, role: 'reviewer' }); }
+
+        if (all.length > 0) {
+          const pipelineResults = await Promise.allSettled(
+            all.map(mr => this.client.getMRPipelineStatus(mr.project_id, mr.iid))
+          );
+          for (let i = 0; i < all.length; i++) {
+            const result = pipelineResults[i];
+            if (result.status === 'fulfilled' && result.value !== null) {
+              all[i] = { ...all[i], pipelineStatus: result.value };
+            }
+          }
+        }
+
         this._onMRsUpdated.fire(all);
         this.consecutiveFailures = 0;
       }
@@ -84,15 +98,17 @@ export class Poller {
       this.inFlight = false;
     }
 
-    // Self-reschedule with backoff on failures
-    const baseMs = getConfig().pollIntervalMinutes * 60_000;
-    const delay = this.consecutiveFailures === 0
-      ? baseMs
-      : Math.min(baseMs * Math.pow(2, this.consecutiveFailures), baseMs * 6);
-    this.scheduleNext(delay);
+    if (!this.disposed) {
+      const baseMs = getConfig().pollIntervalMinutes * 60_000;
+      const delay = this.consecutiveFailures === 0
+        ? baseMs
+        : Math.min(baseMs * Math.pow(2, this.consecutiveFailures), baseMs * 6);
+      this.scheduleNext(delay);
+    }
   }
 
   dispose(): void {
+    this.disposed = true;
     this.stop();
     this._onMRsUpdated.dispose();
     this._onPollError.dispose();

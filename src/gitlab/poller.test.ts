@@ -27,6 +27,9 @@ const fakeMR: MR = {
   web_url: 'https://gitlab.com/org/repo/-/merge_requests/1',
   project_id: 10,
   references: { full: 'org/repo!1' },
+  work_in_progress: false,
+  has_conflicts: false,
+  upvotes: 0,
 };
 
 function makeClient(
@@ -39,6 +42,7 @@ function makeClient(
   return {
     getAssignedMRs: vi.fn(assignedImpl),
     getReviewRequestedMRs: vi.fn(() => Promise.resolve(reviewing)),
+    getMRPipelineStatus: vi.fn(() => Promise.resolve(null)),
   } as unknown as GitLabClient;
 }
 
@@ -60,6 +64,7 @@ describe('Poller', () => {
     const client = {
       getAssignedMRs: vi.fn().mockRejectedValue(new Error('network error')),
       getReviewRequestedMRs: vi.fn().mockResolvedValue([reviewerMR]),
+      getMRPipelineStatus: vi.fn().mockResolvedValue(null),
     } as unknown as GitLabClient;
     const poller = new Poller(client, 42);
 
@@ -108,6 +113,23 @@ describe('Poller', () => {
     poller.dispose();
   });
 
+  it('attaches pipelineStatus to TaggedMRs when getMRPipelineStatus resolves', async () => {
+    const client = {
+      getAssignedMRs: vi.fn().mockResolvedValue([fakeMR]),
+      getReviewRequestedMRs: vi.fn().mockResolvedValue([]),
+      getMRPipelineStatus: vi.fn().mockResolvedValue('success'),
+    } as unknown as GitLabClient;
+    const poller = new Poller(client, 42);
+
+    const mrs = await new Promise<TaggedMR[]>(resolve => {
+      poller.onMRsUpdated(v => resolve(v as TaggedMR[]));
+      void poller.fetch();
+    });
+
+    expect(mrs[0].pipelineStatus).toBe('success');
+    poller.dispose();
+  });
+
   it('in-flight guard: concurrent fetch() calls are no-ops', async () => {
     let resolveFirst!: (v: MR[]) => void;
     const firstPending = new Promise<MR[]>(r => { resolveFirst = r; });
@@ -115,6 +137,7 @@ describe('Poller', () => {
     const client = {
       getAssignedMRs: mockGetAssigned,
       getReviewRequestedMRs: vi.fn().mockResolvedValue([]),
+      getMRPipelineStatus: vi.fn().mockResolvedValue(null),
     } as unknown as GitLabClient;
     const poller = new Poller(client, 42);
 

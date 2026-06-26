@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "publisher": "johnnyoy",
   "repository": { "type": "git", "url": "https://github.com/johnnyoy/assigned" },
-  "engines": { "vscode": "^1.85.0" },
+  "engines": { "vscode": "^1.100.0" },
   "categories": ["Other"],
   "activationEvents": ["onStartupFinished"],
   "main": "./out/extension.js",
@@ -51,6 +51,16 @@
         "command": "assigned.signOut",
         "title": "Assigned: Sign Out",
         "icon": "$(sign-out)"
+      },
+      {
+        "command": "assigned.approveMR",
+        "title": "Approve MR",
+        "icon": "$(check)"
+      },
+      {
+        "command": "assigned.requestChanges",
+        "title": "Request Changes",
+        "icon": "$(comment)"
       }
     ],
     "viewsWelcome": [
@@ -83,6 +93,16 @@
           "command": "assigned.reviewMR",
           "when": "view == assigned.mrList && viewItem == mr",
           "group": "inline@2"
+        },
+        {
+          "command": "assigned.approveMR",
+          "when": "view == assigned.mrList && viewItem == mr",
+          "group": "inline@3"
+        },
+        {
+          "command": "assigned.requestChanges",
+          "when": "view == assigned.mrList && viewItem == mr",
+          "group": "inline@4"
         }
       ]
     },
@@ -120,7 +140,7 @@
     "vscode:prepublish": "npm run compile"
   },
   "devDependencies": {
-    "@types/vscode": "^1.125.0",
+    "@types/vscode": "^1.100.0",
     "@types/node": "^26.0.0",
     "@vscode/vsce": "^3.9.0",
     "typescript": "^6.0.0",
