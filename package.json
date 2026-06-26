@@ -51,6 +51,16 @@
         "command": "assigned.signOut",
         "title": "Assigned: Sign Out",
         "icon": "$(sign-out)"
+      },
+      {
+        "command": "assigned.approveMR",
+        "title": "Approve MR",
+        "icon": "$(check)"
+      },
+      {
+        "command": "assigned.requestChanges",
+        "title": "Request Changes",
+        "icon": "$(comment)"
       }
     ],
     "viewsWelcome": [
@@ -83,6 +93,16 @@
           "command": "assigned.reviewMR",
           "when": "view == assigned.mrList && viewItem == mr",
           "group": "inline@2"
+        },
+        {
+          "command": "assigned.approveMR",
+          "when": "view == assigned.mrList && viewItem == mr",
+          "group": "inline@3"
+        },
+        {
+          "command": "assigned.requestChanges",
+          "when": "view == assigned.mrList && viewItem == mr",
+          "group": "inline@4"
         }
       ]
     },

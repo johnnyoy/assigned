@@ -99,6 +99,72 @@ describe('GitLabClient ETag caching', () => {
   });
 });
 
+describe('GitLabClient.getMRPipelineStatus', () => {
+  it('returns the status of the most recent pipeline', async () => {
+    const mockFetch = makeFetch(200, [{ status: 'success' }, { status: 'failed' }]);
+    vi.stubGlobal('fetch', mockFetch);
+
+    const client = new GitLabClient('https://gitlab.com', 'token');
+    const status = await client.getMRPipelineStatus(10, 1);
+
+    expect(status).toBe('success');
+    expect(mockFetch.mock.calls[0][0] as string).toContain('/pipelines');
+  });
+
+  it('returns null when no pipelines exist', async () => {
+    vi.stubGlobal('fetch', makeFetch(200, []));
+    const client = new GitLabClient('https://gitlab.com', 'token');
+    expect(await client.getMRPipelineStatus(10, 1)).toBeNull();
+  });
+});
+
+describe('GitLabClient.approveMR', () => {
+  it('POSTs to the approve endpoint', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true, status: 201,
+      headers: { get: () => null },
+      json: async () => ({}),
+    });
+    vi.stubGlobal('fetch', mockFetch);
+
+    const client = new GitLabClient('https://gitlab.com', 'token');
+    await client.approveMR(10, 1);
+
+    const [url, opts] = mockFetch.mock.calls[0];
+    expect(url).toContain('/approve');
+    expect(opts.method).toBe('POST');
+  });
+
+  it('throws GitLabError with status 403 when scope is insufficient', async () => {
+    vi.stubGlobal('fetch', makeFetch(403, 'Forbidden'));
+
+    const client = new GitLabClient('https://gitlab.com', 'token');
+    const err = await client.approveMR(10, 1).catch(e => e);
+
+    expect(err).toBeInstanceOf(GitLabError);
+    expect(err.status).toBe(403);
+  });
+});
+
+describe('GitLabClient.postMRNote', () => {
+  it('POSTs to the notes endpoint with the given body', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true, status: 201,
+      headers: { get: () => null },
+      json: async () => ({ id: 99 }),
+    });
+    vi.stubGlobal('fetch', mockFetch);
+
+    const client = new GitLabClient('https://gitlab.com', 'token');
+    await client.postMRNote(10, 1, 'Please fix the tests');
+
+    const [url, opts] = mockFetch.mock.calls[0];
+    expect(url).toContain('/notes');
+    expect(opts.method).toBe('POST');
+    expect(JSON.parse(opts.body as string).body).toBe('Please fix the tests');
+  });
+});
+
 describe('GitLabClient.getMRDiffs', () => {
   it('calls the /diffs endpoint', async () => {
     const mockFetch = makeFetch(200, [{ old_path: 'a.ts', new_path: 'a.ts', new_file: false, deleted_file: false }]);

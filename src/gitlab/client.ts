@@ -11,10 +11,18 @@ export interface MR {
   web_url: string;
   project_id: number;
   references: { full: string };
+  work_in_progress: boolean;
+  has_conflicts: boolean;
+  upvotes: number;
 }
 
+export type PipelineStatus =
+  | 'success' | 'failed' | 'running' | 'pending'
+  | 'canceled' | 'skipped' | 'created'
+  | 'waiting_for_resource' | 'preparing' | 'scheduled';
+
 export type MRRole = 'assigned' | 'reviewer';
-export interface TaggedMR extends MR { role: MRRole; }
+export interface TaggedMR extends MR { role: MRRole; pipelineStatus?: PipelineStatus; }
 
 export interface MRChange {
   old_path: string;
@@ -137,6 +145,39 @@ export class GitLabClient {
     const data = await this.get<Project>(`/projects/${encodeURIComponent(projectId)}`);
     if (!data) throw new Error('Failed to fetch project');
     return data;
+  }
+
+  async getMRPipelineStatus(projectId: number, mrIid: number): Promise<PipelineStatus | null> {
+    const data = await this.get<Array<{ status: PipelineStatus }>>(
+      `/projects/${projectId}/merge_requests/${mrIid}/pipelines?per_page=1`
+    );
+    return data && data.length > 0 ? data[0].status : null;
+  }
+
+  async approveMR(projectId: number, mrIid: number): Promise<void> {
+    await this.post(`/projects/${projectId}/merge_requests/${mrIid}/approve`);
+  }
+
+  async postMRNote(projectId: number, mrIid: number, body: string): Promise<void> {
+    await this.post(`/projects/${projectId}/merge_requests/${mrIid}/notes`, { body });
+  }
+
+  private async post<T>(path: string, body?: unknown): Promise<T | null> {
+    const url = `${this.baseUrl}/api/v4${path}`;
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${this.token}`,
+      'Content-Type': 'application/json',
+    };
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    if (!response.ok) {
+      throw new GitLabError(`GitLab API ${response.status} for POST ${path}`, response.status);
+    }
+    if (response.status === 204) return null;
+    return response.json() as Promise<T>;
   }
 }
 

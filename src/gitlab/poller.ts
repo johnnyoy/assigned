@@ -77,6 +77,19 @@ export class Poller {
         const all: TaggedMR[] = [];
         for (const mr of assigned) { seen.add(mr.id); all.push({ ...mr, role: 'assigned' }); }
         for (const mr of reviewing) { if (!seen.has(mr.id)) all.push({ ...mr, role: 'reviewer' }); }
+
+        if (all.length > 0) {
+          const pipelineResults = await Promise.allSettled(
+            all.map(mr => this.client.getMRPipelineStatus(mr.project_id, mr.iid))
+          );
+          for (let i = 0; i < all.length; i++) {
+            const result = pipelineResults[i];
+            if (result.status === 'fulfilled' && result.value !== null) {
+              all[i] = { ...all[i], pipelineStatus: result.value };
+            }
+          }
+        }
+
         this._onMRsUpdated.fire(all);
         this.consecutiveFailures = 0;
       }
