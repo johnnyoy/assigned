@@ -177,7 +177,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await client.approveMR(item.mr.project_id, item.mr.iid);
         vscode.window.showInformationMessage(`Approved ${item.mr.references.full}.`);
       } catch (err) {
-        if (err instanceof GitLabError && err.status === 403) {
+        if (err instanceof GitLabError && err.status === 401) {
+          void handleAuthError();
+        } else if (err instanceof GitLabError && err.status === 403) {
           vscode.window.showErrorMessage(
             'Assigned: approve requires "api" scope. Reconfigure your token with full API access.'
           );
@@ -207,7 +209,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await client.postMRNote(item.mr.project_id, item.mr.iid, note.trim());
         vscode.window.showInformationMessage(`Comment posted on ${item.mr.references.full}.`);
       } catch (err) {
-        if (err instanceof GitLabError && err.status === 403) {
+        if (err instanceof GitLabError && err.status === 401) {
+          void handleAuthError();
+        } else if (err instanceof GitLabError && err.status === 403) {
           vscode.window.showErrorMessage(
             'Assigned: posting notes requires "api" scope. Reconfigure your token with full API access.'
           );

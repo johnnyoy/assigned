@@ -113,6 +113,23 @@ describe('Poller', () => {
     poller.dispose();
   });
 
+  it('attaches pipelineStatus to TaggedMRs when getMRPipelineStatus resolves', async () => {
+    const client = {
+      getAssignedMRs: vi.fn().mockResolvedValue([fakeMR]),
+      getReviewRequestedMRs: vi.fn().mockResolvedValue([]),
+      getMRPipelineStatus: vi.fn().mockResolvedValue('success'),
+    } as unknown as GitLabClient;
+    const poller = new Poller(client, 42);
+
+    const mrs = await new Promise<TaggedMR[]>(resolve => {
+      poller.onMRsUpdated(v => resolve(v as TaggedMR[]));
+      void poller.fetch();
+    });
+
+    expect(mrs[0].pipelineStatus).toBe('success');
+    poller.dispose();
+  });
+
   it('in-flight guard: concurrent fetch() calls are no-ops', async () => {
     let resolveFirst!: (v: MR[]) => void;
     const firstPending = new Promise<MR[]>(r => { resolveFirst = r; });

@@ -6,7 +6,7 @@ A VS Code extension that watches GitLab for merge requests assigned to you and l
 
 - VS Code 1.85 or later
 - A GitLab account (gitlab.com or self-hosted)
-- A GitLab Personal Access Token with **`read_api`** scope
+- A GitLab Personal Access Token with **`read_api`** scope (or **`api`** scope to also approve MRs and post comments)
 - [GitHub Copilot Chat](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot-chat) (optional — diffs open without it, but the AI review step requires it)
 
 ## Installation
@@ -51,7 +51,25 @@ After setup, the **Assigned Reviews** panel appears in the activity bar. A badge
 | Force refresh | Click the ↺ button in the panel title bar, or run **Assigned: Refresh Now** |
 | Open MR in browser | Click the ↗ button next to any MR |
 | Review an MR | Click the ▷ button next to any MR |
+| Approve an MR | Click the ✓ button next to any MR (requires `api` scope — see note below) |
+| Request changes | Click the 💬 button next to any MR and enter your comment (`api` scope required) |
 | Reconfigure token or URL | Run **Assigned: Configure** again |
+| Sign out | Click the sign-out button in the panel title bar, or run **Assigned: Sign Out** |
+
+### MR status indicators
+
+Each MR in the sidebar shows compact status badges in its description line:
+
+| Badge | Meaning |
+|-------|---------|
+| `[DRAFT]` | MR is a draft (work in progress) — not ready to merge |
+| `⚠` | MR has merge conflicts |
+| `✓` | CI pipeline passed |
+| `✗` | CI pipeline failed |
+| `↻` | CI pipeline running or pending |
+| `+N` | N approvals received |
+
+> **Note on `api` scope:** The default `read_api` token scope covers all read operations (viewing MRs, CI status, diffs). The **Approve** and **Request Changes** actions require a token with full `api` scope. If you get a "requires api scope" error, reconfigure your token: GitLab → User Settings → Access Tokens → scope: `api`.
 
 ### What "Review" does
 

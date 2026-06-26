@@ -6,6 +6,7 @@ export class Poller {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private inFlight = false;
   private consecutiveFailures = 0;
+  private disposed = false;
 
   private readonly _onMRsUpdated = new vscode.EventEmitter<TaggedMR[]>();
   private readonly _onPollError = new vscode.EventEmitter<Error>();
@@ -97,15 +98,17 @@ export class Poller {
       this.inFlight = false;
     }
 
-    // Self-reschedule with backoff on failures
-    const baseMs = getConfig().pollIntervalMinutes * 60_000;
-    const delay = this.consecutiveFailures === 0
-      ? baseMs
-      : Math.min(baseMs * Math.pow(2, this.consecutiveFailures), baseMs * 6);
-    this.scheduleNext(delay);
+    if (!this.disposed) {
+      const baseMs = getConfig().pollIntervalMinutes * 60_000;
+      const delay = this.consecutiveFailures === 0
+        ? baseMs
+        : Math.min(baseMs * Math.pow(2, this.consecutiveFailures), baseMs * 6);
+      this.scheduleNext(delay);
+    }
   }
 
   dispose(): void {
+    this.disposed = true;
     this.stop();
     this._onMRsUpdated.dispose();
     this._onPollError.dispose();

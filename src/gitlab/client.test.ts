@@ -163,6 +163,16 @@ describe('GitLabClient.postMRNote', () => {
     expect(opts.method).toBe('POST');
     expect(JSON.parse(opts.body as string).body).toBe('Please fix the tests');
   });
+
+  it('throws GitLabError with status 403 when scope is insufficient', async () => {
+    vi.stubGlobal('fetch', makeFetch(403, 'Forbidden'));
+
+    const client = new GitLabClient('https://gitlab.com', 'token');
+    const err = await client.postMRNote(10, 1, 'comment').catch(e => e);
+
+    expect(err).toBeInstanceOf(GitLabError);
+    expect(err.status).toBe(403);
+  });
 });
 
 describe('GitLabClient.getMRDiffs', () => {

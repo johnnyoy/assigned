@@ -14,7 +14,7 @@ export class MRItem extends vscode.TreeItem {
     const conflictSuffix = mr.has_conflicts ? ' ⚠' : '';
     const upvoteSuffix = mr.upvotes > 0 ? ` +${mr.upvotes}` : '';
 
-    this.description = `${mr.references.full} · ${mr.author.name}${roleSuffix}${ciSuffix}${draftSuffix}${conflictSuffix}${upvoteSuffix}`;
+    this.description = `${mr.references.full}${draftSuffix}${conflictSuffix}${ciSuffix} · ${mr.author.name}${roleSuffix}${upvoteSuffix}`;
 
     const ciLine = mr.pipelineStatus ? `\n\nCI: ${mr.pipelineStatus}` : '';
     const draftLine = mr.work_in_progress ? '\n\n⚠ Draft MR — not ready to merge' : '';
