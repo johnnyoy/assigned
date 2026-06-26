@@ -53,10 +53,16 @@ export async function reviewMR(mr: MR, client: GitLabClient): Promise<void> {
       if (!repo) {
         const choice = await vscode.window.showWarningMessage(
           `Repository "${project.path_with_namespace}" is not open in VS Code.`,
-          'Clone It',
-          'Cancel'
+          { modal: true },
+          'Clone and Open'
         );
-        if (choice === 'Clone It') {
+        if (choice === 'Clone and Open') {
+          // Show guidance before git.clone runs — it opens the repo in this window,
+          // which causes VS Code to reload. The user needs to click Review again afterwards.
+          void vscode.window.showInformationMessage(
+            `Cloning ${project.path_with_namespace}… ` +
+            `Once VS Code opens the repository, click Review again from the Assigned panel.`
+          );
           await vscode.commands.executeCommand('git.clone', project.http_url_to_repo);
         }
         return;
