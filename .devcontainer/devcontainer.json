@@ -1,0 +1,12 @@
+{
+  "name": "Assigned",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22",
+  "postCreateCommand": "npm install",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "typescript.tsdk": "node_modules/typescript/lib"
+      }
+    }
+  }
+}

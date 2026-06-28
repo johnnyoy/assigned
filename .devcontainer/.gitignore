@@ -1,0 +1,6 @@
+# Auth data bound from the host — never committed.
+.claude/
+.openclaw/
+
+# Local secrets
+.env
